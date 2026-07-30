@@ -1,1 +1,4 @@
 .env
+node_modules/
+nexus-invest-frontend-backup-*/
+.next/

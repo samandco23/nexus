@@ -1,8 +1,0 @@
-.git
-.gitignore
-.env
-.env.local
-.env.example
-*.md
-node_modules/
-.next/

@@ -1,0 +1,7 @@
+{
+  "framework": "nextjs",
+  "rootDirectory": "nexus-invest-frontend",
+  "buildCommand": "next build --webpack",
+  "installCommand": "npm install",
+  "outputDirectory": ".next"
+}
