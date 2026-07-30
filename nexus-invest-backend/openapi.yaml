@@ -1,0 +1,1934 @@
+openapi: 3.0.3
+info:
+  title: Nexus Invest API
+  description: API de la plateforme d'investissement Nexus Invest
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Serveur de développement
+paths:
+  # ────────────────────── AUTH ──────────────────────
+  /auth/register:
+    post:
+      summary: Inscription
+      description: Crée un nouveau compte utilisateur. Rate-limité à 5 requêtes/60s.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [first_name, last_name, email, phone, password, password_confirmation, country, country_code]
+              properties:
+                first_name:
+                  type: string
+                  maxLength: 255
+                  example: Jean
+                last_name:
+                  type: string
+                  maxLength: 255
+                  example: Dupont
+                email:
+                  type: string
+                  format: email
+                  example: jean.dupont@email.com
+                phone:
+                  type: string
+                  maxLength: 30
+                  example: +237691234567
+                password:
+                  type: string
+                  minLength: 8
+                  description: Doit contenir au moins une minuscule, une majuscule et un chiffre
+                  example: Password123
+                password_confirmation:
+                  type: string
+                  example: Password123
+                country:
+                  type: string
+                  maxLength: 100
+                  example: Cameroun
+                country_code:
+                  type: string
+                  maxLength: 5
+                  example: +237
+                referral_code:
+                  type: string
+                  maxLength: 20
+                  nullable: true
+                  description: Code de parrainage optionnel
+                  example: JEAN2024
+      responses:
+        '201':
+          description: Inscription réussie
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+                          token:
+                            type: string
+                            example: 1|abc123def456...
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/login:
+    post:
+      summary: Connexion
+      description: Authentifie un utilisateur et retourne un token Sanctum. Rate-limité à 5 requêtes/60s.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: jean.dupont@email.com
+                password:
+                  type: string
+                  example: Password123
+      responses:
+        '200':
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+                          token:
+                            type: string
+                            example: 1|abc123def456...
+        '401':
+          description: Identifiants incorrects
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Email non vérifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/forgot-password:
+    post:
+      summary: Mot de passe oublié
+      description: Envoie un lien de réinitialisation par email. Rate-limité à 5 requêtes/60s.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: jean.dupont@email.com
+      responses:
+        '200':
+          description: Lien envoyé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/reset-password:
+    post:
+      summary: Réinitialiser le mot de passe
+      description: Réinitialise le mot de passe avec un token valide.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, email, password, password_confirmation]
+              properties:
+                token:
+                  type: string
+                  description: Token de réinitialisation reçu par email
+                  example: abc123def456...
+                email:
+                  type: string
+                  format: email
+                  example: jean.dupont@email.com
+                password:
+                  type: string
+                  minLength: 8
+                  example: NewPass123
+                password_confirmation:
+                  type: string
+                  example: NewPass123
+      responses:
+        '200':
+          description: Mot de passe réinitialisé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Token invalide ou expiré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/me:
+    get:
+      summary: Profil utilisateur
+      description: Retourne le profil de l'utilisateur authentifié avec son portefeuille.
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profil récupéré
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+    put:
+      summary: Mettre à jour le profil
+      description: Met à jour les informations du profil utilisateur.
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name:
+                  type: string
+                  maxLength: 255
+                  example: Jean
+                last_name:
+                  type: string
+                  maxLength: 255
+                  example: Dupont
+                phone:
+                  type: string
+                  maxLength: 30
+                  example: +237691234567
+                country:
+                  type: string
+                  maxLength: 100
+                  example: Cameroun
+      responses:
+        '200':
+          description: Profil mis à jour
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/password:
+    put:
+      summary: Modifier le mot de passe
+      description: Modifie le mot de passe de l'utilisateur authentifié. Tous les tokens sont révoqués. Rate-limité à 5 requêtes/60s.
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, password, password_confirmation]
+              properties:
+                current_password:
+                  type: string
+                  example: OldPass123
+                password:
+                  type: string
+                  minLength: 8
+                  example: NewPass123
+                password_confirmation:
+                  type: string
+                  example: NewPass123
+      responses:
+        '200':
+          description: Mot de passe modifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/logout:
+    post:
+      summary: Déconnexion
+      description: Révoque le token d'accès actuel.
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Déconnexion réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /auth/verify-email:
+    post:
+      summary: Vérifier l'email
+      description: Vérifie l'adresse email avec un code OTP à 6 chiffres. Rate-limité à 10 requêtes/60s.
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                  description: Code OTP reçu par email
+                  example: 123456
+      responses:
+        '200':
+          description: Email vérifié
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '400':
+          description: Code invalide ou expiré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/resend-otp:
+    post:
+      summary: Renvoyer le code OTP
+      description: Renvoie un nouveau code de vérification par email. Rate-limité à 1 minute.
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Code renvoyé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '429':
+          description: Trop de requêtes — attendez 1 minute
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ────────────────────── INVESTMENTS ──────────────────────
+  /investments/callback:
+    post:
+      summary: Callback de paiement
+      description: Endpoint public pour les webhooks de paiement Stripe/Flutterwave. Valide la signature et crée l'investissement.
+      tags: [Investissements]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transaction_id, provider_reference, status]
+              properties:
+                transaction_id:
+                  type: integer
+                  description: ID de la transaction en attente
+                  example: 42
+                provider_reference:
+                  type: string
+                  description: Référence côté fournisseur de paiement
+                  example: ch_3Nabc123...
+                status:
+                  type: string
+                  enum: [successful, failed, cancelled]
+                  example: successful
+      responses:
+        '200':
+          description: Investissement confirmé
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/Investment'
+        '400':
+          description: Transaction déjà traitée ou échouée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Signature de webhook invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /investments/active:
+    get:
+      summary: Investissements actifs
+      description: Retourne la liste des investissements actifs de l'utilisateur connecté.
+      tags: [Investissements]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Investissements actifs récupérés
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/InvestmentCollection'
+
+  /investments:
+    get:
+      summary: Liste des investissements
+      description: Retourne tous les investissements de l'utilisateur connecté, paginés par 15.
+      tags: [Investissements]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Investissements récupérés
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/InvestmentCollection'
+    post:
+      summary: Créer un investissement
+      description: Crée un nouvel investissement. Si le mode de paiement est 'wallet', le solde est débité immédiatement. Pour Stripe/Flutterwave, une transaction est créée en attente.
+      tags: [Investissements]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pack_id, amount, payment_provider]
+              properties:
+                pack_id:
+                  type: integer
+                  description: ID du pack d'investissement
+                  example: 1
+                amount:
+                  type: number
+                  minimum: 1
+                  description: Montant investi (doit être >= min_amount du pack)
+                  example: 50000
+                payment_provider:
+                  type: string
+                  enum: [stripe, flutterwave, wallet]
+                  example: wallet
+      responses:
+        '201':
+          description: Investissement créé (wallet)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/Investment'
+        '200':
+          description: Paiement initié (Stripe/Flutterwave)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          transaction:
+                            $ref: '#/components/schemas/Transaction'
+                          client_secret:
+                            type: string
+                          payment_link:
+                            type: string
+                          requires_confirmation:
+                            type: boolean
+                            example: true
+        '400':
+          description: Solde insuffisant ou mode non supporté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /investments/{investment}:
+    get:
+      summary: Détail d'un investissement
+      description: Retourne les détails d'un investissement spécifique de l'utilisateur connecté.
+      tags: [Investissements]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: investment
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID de l'investissement
+          example: 1
+      responses:
+        '200':
+          description: Détails de l'investissement
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/Investment'
+        '404':
+          description: Investissement non trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ────────────────────── INVESTMENT PACKS ──────────────────────
+  /investment-packs:
+    get:
+      summary: Packs d'investissement
+      description: Retourne tous les packs d'investissement actifs triés par montant minimum.
+      tags: [Packs d'investissement]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Packs récupérés
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/InvestmentPack'
+
+  # ────────────────────── MINING ──────────────────────
+  /mining/status:
+    get:
+      summary: Statut du minage
+      description: Retourne les taux de minage actuels, la possibilité de miner et les informations du jour.
+      tags: [Minage]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statut récupéré
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          rates:
+                            type: object
+                            description: Taux de minage actuels
+                            properties:
+                              base_rate:
+                                type: number
+                                format: float
+                                example: 0.005
+                              referral_bonus:
+                                type: number
+                                format: float
+                                example: 0.001
+                              total_rate:
+                                type: number
+                                format: float
+                                example: 0.006
+                          can_mine:
+                            type: boolean
+                            example: true
+                          reason:
+                            type: string
+                            nullable: true
+                            example: null
+                          next_available:
+                            type: string
+                            format: date-time
+                            nullable: true
+                            example: null
+                          penalty:
+                            type: number
+                            nullable: true
+                            example: null
+                          today_mining:
+                            $ref: '#/components/schemas/MiningLog'
+                            nullable: true
+                          last_validation:
+                            type: string
+                            format: date-time
+                            nullable: true
+                            example: '2024-01-15T10:30:00Z'
+
+  /mining/validate:
+    post:
+      summary: Valider le minage
+      description: Valide une session de minage pour l'utilisateur connecté. Les tokens sont crédités dans le wallet.
+      tags: [Minage]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Minage validé
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/MiningLog'
+        '400':
+          description: Impossible de miner (délai non atteint, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /mining/history:
+    get:
+      summary: Historique de minage
+      description: Retourne l'historique de minage des 7 derniers jours.
+      tags: [Minage]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Historique récupéré
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MiningLog'
+
+  /mining/convert:
+    post:
+      summary: Convertir des tokens
+      description: Convertit des tokens minés en FCFA crédités sur le solde du portefeuille.
+      tags: [Minage]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token_amount]
+              properties:
+                token_amount:
+                  type: number
+                  minimum: 1
+                  description: Nombre de tokens à convertir
+                  example: 50
+      responses:
+        '200':
+          description: Conversion réussie
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          token_amount:
+                            type: number
+                            example: 50
+                          fiat_amount:
+                            type: number
+                            example: 25000
+                          conversion_rate:
+                            type: number
+                            example: 500
+                          new_token_balance:
+                            type: number
+                            example: 120.5
+                          new_fiat_balance:
+                            type: number
+                            example: 75000
+        '400':
+          description: Solde insuffisant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  # ────────────────────── REFERRALS ──────────────────────
+  /referrals:
+    get:
+      summary: Liste des filleuls
+      description: Retourne la liste des utilisateurs parrainés par l'utilisateur connecté.
+      tags: [Parrainage]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Filleuls récupérés
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /referrals/tree:
+    get:
+      summary: Arbre de parrainage
+      description: Retourne l'arbre de parrainage sur 3 niveaux de profondeur.
+      tags: [Parrainage]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Arbre récupéré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /referrals/code:
+    put:
+      summary: Modifier le code de parrainage
+      description: Définit un code de parrainage personnalisé. Ne peut être fait qu'une seule fois.
+      tags: [Parrainage]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [referral_code]
+              properties:
+                referral_code:
+                  type: string
+                  minLength: 4
+                  maxLength: 20
+                  pattern: '^[a-zA-Z0-9]+$'
+                  description: Code unique alphanumérique
+                  example: JEAN2024
+      responses:
+        '200':
+          description: Code mis à jour
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          referral_code:
+                            type: string
+                            example: JEAN2024
+        '400':
+          description: Code déjà défini
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  # ────────────────────── WALLET ──────────────────────
+  /wallet:
+    get:
+      summary: Portefeuille
+      description: Retourne les détails du portefeuille de l'utilisateur connecté.
+      tags: [Portefeuille]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Portefeuille récupéré
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/Wallet'
+        '404':
+          description: Portefeuille non trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /wallet/transactions:
+    get:
+      summary: Transactions
+      description: Retourne l'historique des transactions de l'utilisateur connecté, paginé par 15.
+      tags: [Portefeuille]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Transactions récupérées
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/TransactionCollection'
+
+  # ────────────────────── WITHDRAWALS ──────────────────────
+  /withdrawals:
+    get:
+      summary: Demandes de retrait
+      description: Retourne les demandes de retrait de l'utilisateur connecté, paginées par 15.
+      tags: [Retraits]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Demandes récupérées
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/WithdrawalCollection'
+    post:
+      summary: Créer une demande de retrait
+      description: Soumet une demande de retrait. Le montant minimum est configurable (défaut 5000 FCFA). Rate-limité à 5 requêtes/60s.
+      tags: [Retraits]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, method, recipient_details]
+              properties:
+                amount:
+                  type: number
+                  minimum: 1
+                  description: Montant du retrait en FCFA
+                  example: 25000
+                method:
+                  type: string
+                  enum: [stripe, flutterwave_mobile_money, flutterwave_bank_transfer]
+                  example: flutterwave_mobile_money
+                recipient_details:
+                  type: object
+                  description: Détails du bénéficiaire selon la méthode
+                  properties:
+                    account_name:
+                      type: string
+                      description: Requis pour flutterwave_bank_transfer
+                      example: Jean Dupont
+                    account_number:
+                      type: string
+                      example: 1234567890
+                    bank_code:
+                      type: string
+                      example: 001
+                    phone:
+                      type: string
+                      description: Requis pour flutterwave_mobile_money
+                      example: +237691234567
+                    network:
+                      type: string
+                      description: Requis pour flutterwave_mobile_money
+                      example: MTN
+      responses:
+        '201':
+          description: Demande créée
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/WithdrawalRequest'
+        '400':
+          description: Solde insuffisant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Portefeuille non trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /withdrawals/{withdrawal_request}/cancel:
+    put:
+      summary: Annuler une demande de retrait
+      description: Annule une demande de retrait en attente. Le montant est remis sur le solde.
+      tags: [Retraits]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: withdrawal_request
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID de la demande de retrait
+          example: 1
+      responses:
+        '200':
+          description: Demande annulée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Demande déjà traitée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Demande non trouvée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ────────────────────── CHAT ──────────────────────
+  /chat/rooms:
+    get:
+      summary: Salons de discussion
+      description: Retourne les salons accessibles à l'utilisateur (général + parrainage si applicable).
+      tags: [Chat]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Salons récupérés
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ChatRoom'
+
+  /chat/rooms/{room}:
+    get:
+      summary: Messages d'un salon
+      description: Retourne les messages d'un salon, paginés par 50, triés du plus récent au plus ancien.
+      tags: [Chat]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: room
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID du salon
+          example: 1
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Messages récupérés
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          data:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/ChatMessage'
+        '403':
+          description: Accès non autorisé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Envoyer un message
+      description: Envoie un message dans un salon de discussion.
+      tags: [Chat]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: room
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID du salon
+          example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                  example: Bonjour à tous !
+      responses:
+        '201':
+          description: Message envoyé
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/ChatMessage'
+        '403':
+          description: Accès non autorisé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  # ────────────────────── ADMIN ──────────────────────
+  /admin/stats:
+    get:
+      summary: Statistiques dashboard
+      description: Retourne les statistiques globales de la plateforme (admin uniquement).
+      tags: [Administration]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistiques récupérées
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          total_users:
+                            type: integer
+                            example: 150
+                          active_users:
+                            type: integer
+                            example: 120
+                          total_invested:
+                            type: number
+                            format: float
+                            example: 50000000
+                          active_investments:
+                            type: integer
+                            example: 85
+                          pending_withdrawals:
+                            type: integer
+                            example: 12
+                          total_withdrawn:
+                            type: number
+                            format: float
+                            example: 10000000
+                          recent_users:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: integer
+                                  example: 42
+                                name:
+                                  type: string
+                                  example: Jean Dupont
+                                email:
+                                  type: string
+                                  example: jean@email.com
+                                created_at:
+                                  type: string
+                                  format: date-time
+
+  /admin/users:
+    get:
+      summary: Liste des utilisateurs
+      description: Retourne tous les utilisateurs avec leur portefeuille, paginés par 20 (admin uniquement).
+      tags: [Administration]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Utilisateurs récupérés
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/UserCollection'
+
+  /admin/users/{user}:
+    get:
+      summary: Détail d'un utilisateur
+      description: Retourne les détails d'un utilisateur avec ses investissements et gains de parrainage (admin uniquement).
+      tags: [Administration]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID de l'utilisateur
+          example: 1
+      responses:
+        '200':
+          description: Détails de l'utilisateur
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+
+  /admin/users/{user}/toggle-status:
+    put:
+      summary: Activer/Suspendre un utilisateur
+      description: Bascule le statut d'un utilisateur entre 'active' et 'suspended'. Ne permet pas de suspendre le dernier administrateur actif.
+      tags: [Administration]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID de l'utilisateur
+          example: 1
+      responses:
+        '200':
+          description: Statut mis à jour
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '400':
+          description: Impossible de suspendre le dernier admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/investments:
+    get:
+      summary: Tous les investissements
+      description: Retourne tous les investissements de la plateforme avec utilisateur et pack, paginés par 20 (admin uniquement).
+      tags: [Administration]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Investissements récupérés
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/InvestmentCollection'
+
+  /admin/withdrawals:
+    get:
+      summary: Toutes les demandes de retrait
+      description: Retourne toutes les demandes de retrait avec utilisateur, paginées par 20 (admin uniquement).
+      tags: [Administration]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Demandes récupérées
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/WithdrawalCollection'
+
+  /admin/withdrawals/{withdrawal_request}/approve:
+    put:
+      summary: Approuver un retrait
+      description: Approuve une demande de retrait en passant son statut à 'processing' (admin uniquement).
+      tags: [Administration]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: withdrawal_request
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID de la demande de retrait
+          example: 1
+      responses:
+        '200':
+          description: Retrait approuvé
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/WithdrawalRequest'
+        '400':
+          description: Demande déjà traitée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/withdrawals/{withdrawal_request}/reject:
+    put:
+      summary: Rejeter un retrait
+      description: Rejette une demande de retrait. Le montant est remis sur le solde de l'utilisateur (admin uniquement).
+      tags: [Administration]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: withdrawal_request
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID de la demande de retrait
+          example: 1
+      responses:
+        '200':
+          description: Retrait rejeté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Demande déjà traitée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: Numéro de page pour la pagination
+      schema:
+        type: integer
+        default: 1
+      example: 1
+
+  schemas:
+    # ── Enveloppes de réponse ──
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+          example: true
+        message:
+          type: string
+          example: Opération réussie.
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+          example: false
+        data:
+          nullable: true
+          default: null
+        message:
+          type: string
+          example: Une erreur est survenue.
+
+    ValidationError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+          example: false
+        data:
+          type: object
+          description: Erreurs de validation par champ
+          example:
+            email: ["L'email est obligatoire."]
+            password: ["Le mot de passe doit contenir au moins 8 caractères."]
+        message:
+          type: string
+          example: Erreur de validation.
+
+    # ── User ──
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        first_name:
+          type: string
+          example: Jean
+        last_name:
+          type: string
+          example: Dupont
+        email:
+          type: string
+          format: email
+          example: jean.dupont@email.com
+        phone:
+          type: string
+          example: +237691234567
+        country:
+          type: string
+          example: Cameroun
+        country_code:
+          type: string
+          example: +237
+        referral_code:
+          type: string
+          nullable: true
+          example: JEAN2024
+        referred_by_id:
+          type: integer
+          nullable: true
+          example: null
+        status:
+          type: string
+          enum: [active, suspended]
+          example: active
+        kyc_level:
+          type: integer
+          minimum: 0
+          example: 0
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2024-01-15T10:00:00Z'
+        is_admin:
+          type: boolean
+          example: false
+        wallet:
+          $ref: '#/components/schemas/Wallet'
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserCollection:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    # ── Wallet ──
+    Wallet:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        fiat_balance:
+          type: number
+          format: float
+          example: 150000.00
+        withdrawable_balance:
+          type: number
+          format: float
+          example: 100000.00
+        token_balance:
+          type: number
+          format: float
+          example: 250.50
+        lifetime_earnings:
+          type: number
+          format: float
+          example: 500000.00
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # ── Investment Pack ──
+    InvestmentPack:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Starter
+        min_amount:
+          type: number
+          format: float
+          example: 25000
+        duration_days:
+          type: integer
+          example: 30
+        roi_percentage:
+          type: number
+          format: float
+          example: 15.0
+        loyalty_bonus_percentage:
+          type: number
+          format: float
+          example: 2.0
+        color_code:
+          type: string
+          example: '#10B981'
+        icon_name:
+          type: string
+          example: seed
+        display_order:
+          type: integer
+          example: 1
+        is_active:
+          type: boolean
+          example: true
+
+    # ── Investment ──
+    Investment:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        pack:
+          $ref: '#/components/schemas/InvestmentPack'
+        transaction_id:
+          type: integer
+          nullable: true
+          example: 42
+        amount_invested:
+          type: number
+          format: float
+          example: 50000.00
+        expected_return:
+          type: number
+          format: float
+          example: 57500.00
+        weekly_payout:
+          type: number
+          format: float
+          example: 9583.33
+        total_paid:
+          type: number
+          format: float
+          example: 0.00
+        remaining_payouts:
+          type: integer
+          example: 6
+        start_date:
+          type: string
+          format: date
+          example: '2024-01-15'
+        end_date:
+          type: string
+          format: date
+          example: '2024-02-14'
+        status:
+          type: string
+          enum: [active, completed, cancelled]
+          example: active
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    InvestmentCollection:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Investment'
+
+    # ── Transaction ──
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 42
+        user_id:
+          type: integer
+          example: 1
+        type:
+          type: string
+          enum: [deposit, withdrawal, investment, bonus, conversion]
+          example: deposit
+        amount:
+          type: number
+          format: float
+          example: 50000.00
+        currency:
+          type: string
+          example: XAF
+        status:
+          type: string
+          enum: [pending, success, failed]
+          example: pending
+        payment_provider:
+          type: string
+          nullable: true
+          enum: [stripe, flutterwave, wallet, null]
+          example: stripe
+        provider_reference:
+          type: string
+          nullable: true
+          example: ch_3Nabc123...
+        internal_reference:
+          type: string
+          nullable: true
+          example: TXN-20240115-001
+        description:
+          type: string
+          nullable: true
+          example: Investissement - Pack Starter
+        metadata:
+          type: object
+          nullable: true
+          example:
+            pack_id: 1
+            client_secret: pi_abc_secret_xyz
+        available_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TransactionCollection:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+
+    # ── Mining Log ──
+    MiningLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        tokens_mined:
+          type: number
+          format: float
+          example: 0.0060
+        base_rate:
+          type: number
+          format: float
+          example: 0.0050
+        referral_bonus_rate:
+          type: number
+          format: float
+          example: 0.0010
+        total_rate:
+          type: number
+          format: float
+          example: 0.0060
+        mined_date:
+          type: string
+          format: date
+          example: '2024-01-15'
+        validated_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2024-01-15T10:30:00Z'
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Referral Earning ──
+    ReferralEarning:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        referrer_id:
+          type: integer
+          example: 1
+        referred_user_id:
+          type: integer
+          example: 2
+        investment_id:
+          type: integer
+          example: 1
+        level:
+          type: integer
+          example: 1
+        percentage:
+          type: number
+          format: float
+          example: 5.0
+        amount:
+          type: number
+          format: float
+          example: 2500.00
+        transaction_id:
+          type: integer
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Withdrawal Request ──
+    WithdrawalRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        amount:
+          type: number
+          format: float
+          example: 25000.00
+        currency:
+          type: string
+          example: XAF
+        method:
+          type: string
+          enum: [stripe, flutterwave_mobile_money, flutterwave_bank_transfer]
+          example: flutterwave_mobile_money
+        recipient_details:
+          type: object
+          nullable: true
+          example:
+            phone: '+237691234567'
+            network: MTN
+        status:
+          type: string
+          enum: [pending, processing, completed, rejected]
+          example: pending
+        admin_notes:
+          type: string
+          nullable: true
+          example: null
+        processed_by:
+          type: integer
+          nullable: true
+          example: null
+        processed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    WithdrawalCollection:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WithdrawalRequest'
+
+    # ── Chat Room ──
+    ChatRoom:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        type:
+          type: string
+          enum: [general, referral]
+          example: general
+        name:
+          type: string
+          example: Salon général
+        last_message:
+          type: object
+          nullable: true
+          properties:
+            message:
+              type: string
+              example: Bonjour à tous !
+            user_name:
+              type: string
+              example: Jean Dupont
+            created_at:
+              type: string
+              format: date-time
+        unread_count:
+          type: integer
+          example: 0
+
+    # ── Chat Message ──
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        chat_room_id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        message:
+          type: string
+          example: Bonjour à tous !
+        user_name:
+          type: string
+          example: Jean Dupont
+        user_avatar:
+          type: string
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum
+
+security:
+  - bearerAuth: []

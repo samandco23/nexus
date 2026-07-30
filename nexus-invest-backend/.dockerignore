@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+.env.example
+*.md
+vendor/
+node_modules/
+storage/framework/cache/data/
+storage/framework/views/
+storage/logs/
